@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""Configure Planify's CalDAV account without touching its GUI.
+
+Planify (io.github.alainm23.planify) stores accounts in a SQLite database.
+Its GUI login dialog is the only documented path, which makes unattended
+setup impossible. This writes the same row the dialog writes, so a packaged
+installer can finish the job.
+
+Two details that are easy to get wrong:
+
+1. Planify derives calendar_home_url as <server>/calendars/<user>/ when the
+   field is empty. Radicale serves collections at <server>/<user>/, so the
+   home URL must be passed explicitly.
+2. caldav_type must be "generic". The default in Planify is "nextcloud",
+   which sends Nextcloud-only requests.
+
+Verified against Planify 4.19.5 (schema: Sources table, JSON data column).
+"""
+import argparse
+import datetime
+import json
+import pathlib
+import sqlite3
+import sys
+import uuid
+
+DB_RELATIVE = ".var/app/io.github.alainm23.planify/data/io.github.alainm23.planify/database.db"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Seed a CalDAV account into Planify")
+    parser.add_argument("--server-url", required=True, help="CalDAV base URL, e.g. http://host:5232/")
+    parser.add_argument("--username", required=True)
+    parser.add_argument("--password", required=True)
+    parser.add_argument("--display-name", default="CalDAV")
+    parser.add_argument(
+        "--calendar-home-url",
+        default=None,
+        help="Collection home. Radicale uses <server>/<user>/. Defaults to that.",
+    )
+    parser.add_argument("--database", default=None, help="Override the Planify database path")
+    return parser.parse_args()
+
+
+def with_slash(value: str) -> str:
+    return value if value.endswith("/") else value + "/"
+
+
+def main() -> int:
+    args = parse_args()
+    database = pathlib.Path(args.database) if args.database else pathlib.Path.home() / DB_RELATIVE
+    if not database.exists():
+        print(f"Planify database not found: {database}", file=sys.stderr)
+        print("Start Planify once so it creates the database, then run this again.", file=sys.stderr)
+        return 1
+
+    server_url = with_slash(args.server_url)
+    calendar_home = with_slash(args.calendar_home_url or server_url + args.username)
+    now = datetime.datetime.now().astimezone().isoformat()
+    data = {
+        "server_url": server_url,
+        "username": args.username,
+        "password": args.password,
+        "caldav_type": "generic",
+        "user_displayname": args.username,
+        "user_email": f"{args.username}@localhost",
+        "calendar_home_url": calendar_home,
+        "ignore_ssl": False,
+        "use_deck": False,
+        "deck_last_sync": "",
+    }
+
+    connection = sqlite3.connect(database)
+    try:
+        existing = connection.execute(
+            "SELECT id FROM Sources WHERE source_type = 'caldav'"
+            " AND json_extract(data, '$.server_url') = ?",
+            (server_url,),
+        ).fetchone()
+        if existing:
+            connection.execute(
+                "UPDATE Sources SET data = ?, updated_at = ?, display_name = ? WHERE id = ?",
+                (json.dumps(data), now, args.display_name, existing[0]),
+            )
+            print(f"Updated the existing CalDAV account {existing[0]}.")
+        else:
+            source_id = str(uuid.uuid4())
+            connection.execute(
+                "INSERT INTO Sources (id, source_type, display_name, added_at, updated_at,"
+                " is_visible, child_order, sync_server, last_sync, data)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (source_id, "caldav", args.display_name, now, now, 1, 0, 1, "", json.dumps(data)),
+            )
+            print(f"Added the CalDAV account {source_id}.")
+        connection.commit()
+    finally:
+        connection.close()
+
+    print("Start Planify. It syncs the lists on launch.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,23 @@
+# vdirsyncer config for the Apple Reminders CalDAV bridge.
+# apple-bridge-setup replaces the %%CALDAV_*%% placeholders.
+# Edit them by hand if you prefer.
+
+[general]
+status_path = "~/.local/state/vdirsyncer/status/"
+
+[pair reminders]
+a = "reminders_local"
+b = "reminders_remote"
+collections = ["from b"]
+metadata = ["displayname"]
+
+[storage reminders_local]
+type = "filesystem"
+path = "~/.local/share/vdirsyncer/reminders/"
+fileext = ".ics"
+
+[storage reminders_remote]
+type = "caldav"
+url = "%%CALDAV_URL%%"
+username = "%%CALDAV_USER%%"
+password = "%%CALDAV_PASSWORD%%"

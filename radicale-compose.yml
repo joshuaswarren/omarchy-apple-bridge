@@ -1,0 +1,18 @@
+# Radicale CalDAV server for the Apple Reminders bridge.
+# The official image moved from Docker Hub "radicale/radicale" to
+# kozea/radicale (Docker Hub and ghcr.io/kozea/radicale). The old name is gone.
+# Radicale has no auth settings in environment variables. Authentication comes
+# from the mounted config file: put "config" and "users" into ./config/.
+services:
+  radicale:
+    image: kozea/radicale:stable
+    container_name: radicale
+    init: true
+    restart: unless-stopped
+    ports:
+      - "5232:5232"
+    environment:
+      RADICALE_CONFIG: /etc/radicale/config
+    volumes:
+      - ./config:/etc/radicale
+      - ./data:/var/lib/radicale

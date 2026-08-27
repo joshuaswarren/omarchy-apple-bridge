@@ -1,0 +1,23 @@
+pkgbase = omarchy-apple-bridge
+	pkgdesc = One-command Apple Reminders setup for Omarchy: Radicale CalDAV plus vdirsyncer, todoman, and a preconfigured Planify account
+	pkgver = 0.2.0
+	pkgrel = 1
+	url = https://github.com/joshuaswarren/omarchy-apple-bridge
+	arch = any
+	license = MIT
+	depends = todoman
+	depends = vdirsyncer
+	optdepends = flatpak: required for the Planify GUI and the BlueBubbles client
+	optdepends = python: seeds the Planify CalDAV account (already pulled in by todoman)
+	source = apple-bridge-setup
+	source = apple-bridge-planify-seed
+	source = vdirsyncer.conf.template
+	source = todoman.conf.template
+	source = README.md
+	sha256sums = 5de4db322d759ae86ce1d5196e2908459b98943218a22acfbf2eaa3b9399b7b8
+	sha256sums = 7998ea2d0ada2f18c69e335b6402afaca70de47b942525354e9fece322a3d5f9
+	sha256sums = e1cb74c98af6ddcd47f161281e98f6e28c83149dfc1f80c8c8e46f86c1cc61ff
+	sha256sums = d0006208a3829ea08c73da18c5f16bf5b548af42937faedbabe8aa1b14d30d15
+	sha256sums = 9097b8c7138619697f3a8b6550ee4432a89e042f3aaf79c493062f6f163676e3
+
+pkgname = omarchy-apple-bridge

@@ -1,0 +1,7 @@
+# todoman config for the Apple Reminders CalDAV bridge.
+# todoman reads this file from ~/.config/todoman/config.py.
+
+[main]
+path = "~/.local/share/vdirsyncer/reminders/*"
+date_order = "year-month-day"
+time_order = "hour-minute"

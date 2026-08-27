@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# Render the vdirsyncer and todoman configs for the Apple Reminders CalDAV
+# bridge. Run this once on the Omarchy client, after the Radicale server runs.
+set -euo pipefail
+
+share_dir="${APPLE_BRIDGE_SHARE:-/usr/share/omarchy-apple-bridge}"
+config_root="${XDG_CONFIG_HOME:-$HOME/.config}"
+vdirsyncer_conf_dir="$config_root/vdirsyncer"
+todoman_conf_dir="$config_root/todoman"
+vdirsyncer_conf="$vdirsyncer_conf_dir/config"
+todoman_conf="$todoman_conf_dir/config.py"
+
+for file in vdirsyncer.conf.template todoman.conf.template; do
+    if [[ ! -f "$share_dir/$file" ]]; then
+        printf 'Missing %s/%s\n' "$share_dir" "$file" >&2
+        exit 1
+    fi
+done
+
+printf 'CalDAV user URL (example: http://192.168.1.50:5232/yourname/): '
+read -r caldav_url
+printf 'CalDAV user name: '
+read -r caldav_user
+printf 'CalDAV password (input stays hidden): '
+read -rs caldav_password
+printf '\n'
+
+for value in "$caldav_url" "$caldav_user" "$caldav_password"; do
+    if [[ -z "$value" ]]; then
+        printf 'URL, user name, and password must not be empty.\n' >&2
+        exit 1
+    fi
+done
+
+# Planify wants the server root, not the per-user collection home.
+caldav_url="${caldav_url%/}/"
+caldav_url_base="${caldav_url%/*/}/"
+
+render() {
+    local template="$1" destination="$2"
+    # python3 does literal replacement. Bash patsub treats "&" and "\" in the
+    # replacement as special (patsub_replacement, bash 5.2+), which corrupts
+    # passwords that contain them.
+    python3 - "$template" "$destination" "$caldav_url" "$caldav_user" "$caldav_password" <<'PY'
+import sys
+
+template, destination, url, user, password = sys.argv[1:6]
+with open(template, encoding="utf-8") as handle:
+    content = handle.read()
+content = content.replace("%%CALDAV_URL%%", url)
+content = content.replace("%%CALDAV_USER%%", user)
+content = content.replace("%%CALDAV_PASSWORD%%", password)
+with open(destination, "w", encoding="utf-8") as handle:
+    handle.write(content)
+PY
+}
+
+mkdir -p "$vdirsyncer_conf_dir" "$todoman_conf_dir"
+
+if [[ -e "$vdirsyncer_conf" ]]; then
+    cp "$vdirsyncer_conf" "$vdirsyncer_conf.bak"
+    printf 'Saved the old vdirsyncer config as %s.bak\n' "$vdirsyncer_conf"
+fi
+
+render "$share_dir/vdirsyncer.conf.template" "$vdirsyncer_conf"
+chmod 600 "$vdirsyncer_conf"
+render "$share_dir/todoman.conf.template" "$todoman_conf"
+
+printf 'Wrote %s\n' "$vdirsyncer_conf"
+printf 'Wrote %s\n' "$todoman_conf"
+
+# Planify is the GUI half. Its account dialog is GUI-only, so seed the
+# account row directly when the app is installed.
+planify_db="$HOME/.var/app/io.github.alainm23.planify/data/io.github.alainm23.planify/database.db"
+if command -v apple-bridge-planify-seed > /dev/null && flatpak info io.github.alainm23.planify > /dev/null 2>&1; then
+    if [[ ! -f "$planify_db" ]]; then
+        printf 'Starting Planify once so it creates its database...\n'
+        flatpak run io.github.alainm23.planify > /dev/null 2>&1 &
+        for _ in {1..20}; do
+            [[ -f "$planify_db" ]] && break
+            sleep 1
+        done
+        pkill -f 'io.github.'"alainm23"'.planify' || true
+        sleep 2
+    fi
+    if [[ -f "$planify_db" ]]; then
+        apple-bridge-planify-seed \
+            --server-url "$caldav_url_base" \
+            --username "$caldav_user" \
+            --password "$caldav_password" \
+            --display-name 'Apple Reminders' \
+            --calendar-home-url "$caldav_url"
+    else
+        printf 'Planify did not create its database. Configure it in the app.\n' >&2
+    fi
+fi
+
+# Flatpak desktop entries are invisible when the compositor session does not
+# include the flatpak export path in XDG_DATA_DIRS. Link them into the user
+# directory, which every launcher reads.
+if command -v flatpak > /dev/null; then
+    mkdir -p "$HOME/.local/share/applications"
+    for entry in /var/lib/flatpak/exports/share/applications/*.desktop; do
+        [[ -e "$entry" ]] && ln -sf "$entry" "$HOME/.local/share/applications/"
+    done
+fi
+
+printf 'Next steps:\n'
+printf '  1. vdirsyncer discover reminders\n'
+printf '  2. vdirsyncer sync\n'
+printf '  3. todo list, or open Planify\n'
