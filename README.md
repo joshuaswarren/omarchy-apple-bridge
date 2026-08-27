@@ -27,7 +27,7 @@ iMessage uses a separate path. See the section "iMessage with BlueBubbles".
 
 ## Package contents
 
-- `/usr/bin/apple-bridge-setup` — asks three questions, writes two configs.
+- `/usr/bin/apple-bridge-setup` asks three questions and writes two configs.
 - `/usr/share/omarchy-apple-bridge/vdirsyncer.conf.template`
 - `/usr/share/omarchy-apple-bridge/todoman.conf.template`
 
@@ -273,8 +273,8 @@ hashes in one deployment.
 MKCALENDAR step in option A. Then run `vdirsyncer discover reminders` again.
 
 **Password safety.** The setup script stores the password in
-`~/.config/vdirsyncer/config`. It sets the file mode to 600. For more safety,
-use the `password.fetch` option of vdirsyncer with a command.
+`~/.config/vdirsyncer/config` with file mode 600. For more safety, use the
+`password.fetch` option of vdirsyncer with a command.
 
 ## Remove
 
