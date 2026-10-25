@@ -30,6 +30,7 @@ iMessage uses a separate path. See the section "iMessage with BlueBubbles".
 ## Package contents
 
 - `/usr/bin/apple-bridge-setup` asks three questions and writes two configs.
+- `/usr/bin/apple-bridge-planify-seed` seeds the Planify CalDAV account.
 - `/usr/share/omarchy-apple-bridge/vdirsyncer.conf.template`
 - `/usr/share/omarchy-apple-bridge/todoman.conf.template`
 
@@ -142,7 +143,6 @@ Then create the calendar with the MKCALENDAR command from option A.
 1. Build and install this package:
 
 ```bash
-cd packaging/omarchy-apple-bridge
 makepkg -si
 ```
 
@@ -218,16 +218,9 @@ Planify is a tasks-only GTK4 app. It is not a mail client, and it does not use
 evolution-data-server. Do not install Evolution or Endeavour for this stack;
 both route through GNOME PIM infrastructure that fights unattended setups.
 
-```bash
-sudo flatpak install -y flathub io.github.alainm23.planify
-apple-bridge-setup   # seeds the Planify CalDAV account for you
-```
-
-`apple-bridge-setup` starts Planify once so it creates its database, then
-writes the CalDAV account with `apple-bridge-planify-seed`. Two values matter:
-`caldav_type` must be `generic`, and `--calendar-home-url` must be the real
-collection home (`<server>/<user>/` on Radicale), because Planify assumes a
-Nextcloud-style layout otherwise.
+`apple-bridge-setup` configures the Planify account for you — see
+"Planify: the GUI, configured without the GUI" below for the details, the
+by-hand seed command and the flatpak launcher fix.
 
 ## iMessage with BlueBubbles
 
@@ -332,7 +325,7 @@ env = XDG_DATA_DIRS,/usr/local/share:/usr/share:/var/lib/flatpak/exports/share:$
 
 ## Support
 
-Every bit of support helps keep omarchy-apple-bridge alive and free. If you are able, [sponsor on GitHub](https://github.com/sponsors/joshuaswarren) or send a Lightning donation to `joshuaswarren@strike.me` to directly fund continued development and new integrations.
+Every bit of support helps keep omarchy-apple-bridge alive and free. If you are able, [sponsor on GitHub](https://github.com/sponsors/joshuaswarren), [buy me a coffee on Ko-fi](https://ko-fi.com/joshuaswarren), or send a Lightning donation to `joshuaswarren@strike.me` to directly fund continued development and new integrations.
 
 [![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?style=for-the-badge)](https://github.com/sponsors/joshuaswarren)
 
