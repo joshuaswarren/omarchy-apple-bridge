@@ -4,9 +4,9 @@
 
 Connect Apple Reminders and iMessage to an Omarchy desktop.
 
-This package installs two tools: `vdirsyncer` and `todoman`. It ships one setup
-script and two config templates. The script asks for your CalDAV server
-details. Then it writes both config files.
+The package depends on `vdirsyncer` and `todoman`. Its setup script asks for
+your CalDAV details, writes their configs, and can seed a Planify account.
+iMessage uses BlueBubbles and needs a separate server on a Mac.
 
 Data flow for reminders:
 
@@ -30,6 +30,7 @@ iMessage uses a separate path. See the section "iMessage with BlueBubbles".
 ## Package contents
 
 - `/usr/bin/apple-bridge-setup` asks three questions and writes two configs.
+- `/usr/bin/apple-bridge-planify-seed` writes a CalDAV account into Planify's database.
 - `/usr/share/omarchy-apple-bridge/vdirsyncer.conf.template`
 - `/usr/share/omarchy-apple-bridge/todoman.conf.template`
 
@@ -42,8 +43,11 @@ iMessage uses a separate path. See the section "iMessage with BlueBubbles".
 
 ## Server option A: Radicale from the Debian package (tested)
 
-These commands were run on Debian 12 on 2026-08-22. Replace `192.168.1.50`
+These commands were run on Debian 12 on 2026-08-22. Replace `caldav.example.com`
 with your server address. Replace `yourname` with your user name.
+
+These examples use plain HTTP. Keep them on a trusted private network.
+Use HTTPS before exposing the server to other networks.
 
 1. Install the packages:
 
@@ -90,7 +94,7 @@ sudo systemctl enable --now radicale
 curl -u yourname --request MKCALENDAR \
   --header 'Content-Type: application/xml' \
   --data '<mkcalendar xmlns="urn:ietf:params:xml:ns:caldav"><set><prop><resourcetype><collection/><calendar/></resourcetype><displayname>Reminders</displayname></prop></set></mkcalendar>' \
-  http://192.168.1.50:5232/yourname/reminders/
+  http://caldav.example.com:5232/yourname/reminders/
 ```
 
 `curl` asks for the password. A `201` reply confirms the creation.
@@ -98,7 +102,7 @@ curl -u yourname --request MKCALENDAR \
 ## Server option B: Radicale with Docker
 
 Use `radicale-compose.yml` from this repository. The image is the
-official `kozea/radicale:stable`.
+`kozea/radicale:stable`.
 
 1. Create the directories:
 
@@ -142,7 +146,8 @@ Then create the calendar with the MKCALENDAR command from option A.
 1. Build and install this package:
 
 ```bash
-cd packaging/omarchy-apple-bridge
+git clone https://github.com/joshuaswarren/omarchy-apple-bridge
+cd omarchy-apple-bridge
 makepkg -si
 ```
 
@@ -152,7 +157,7 @@ makepkg -si
 apple-bridge-setup
 ```
 
-Answer three questions. Example URL: `http://192.168.1.50:5232/yourname/`.
+Answer three questions. Example URL: `http://caldav.example.com:5232/yourname/`.
 The script writes `~/.config/vdirsyncer/config` with mode 600. It writes
 `~/.config/todoman/config.py`.
 
@@ -212,23 +217,6 @@ systemctl --user daemon-reload
 systemctl --user enable --now vdirsyncer.timer
 ```
 
-## GUI task app: Planify
-
-Planify is a tasks-only GTK4 app. It is not a mail client, and it does not use
-evolution-data-server. Do not install Evolution or Endeavour for this stack;
-both route through GNOME PIM infrastructure that fights unattended setups.
-
-```bash
-sudo flatpak install -y flathub io.github.alainm23.planify
-apple-bridge-setup   # seeds the Planify CalDAV account for you
-```
-
-`apple-bridge-setup` starts Planify once so it creates its database, then
-writes the CalDAV account with `apple-bridge-planify-seed`. Two values matter:
-`caldav_type` must be `generic`, and `--calendar-home-url` must be the real
-collection home (`<server>/<user>/` on Radicale), because Planify assumes a
-Nextcloud-style layout otherwise.
-
 ## iMessage with BlueBubbles
 
 BlueBubbles moves iMessage off the Mac. The Mac runs the server. The Linux
@@ -257,24 +245,24 @@ Full documentation: <https://docs.bluebubbles.app>.
 
 ## Troubleshooting
 
-**Valid password rejected, HTTP 401.** Install `python3-passlib` on the
+Valid password rejected, HTTP 401. Install `python3-passlib` on the
 server. Radicale cannot read bcrypt hashes without it. Restart with
 `sudo systemctl restart radicale`.
 
-**Valid password still rejected.** Do not use `htpasswd_encryption =
+Valid password still rejected. Do not use `htpasswd_encryption =
 autodetect`. Set `htpasswd_encryption = bcrypt`. Autodetect misread bcrypt
 hashes in one deployment.
 
-**Writes fail with HTTP 500.** The storage directory has the wrong owner. Run
+Writes fail with HTTP 500. The storage directory has the wrong owner. Run
 `sudo chown -R radicale:radicale /var/lib/radicale`.
 
-**Client cannot connect.** The default config binds to localhost only. Set
+Client cannot connect. The default config binds to localhost only. Set
 `hosts = 0.0.0.0:5232, [::]:5232`. Restart the service.
 
-**vdirsyncer reports no collections.** Create the calendar first. See the
+vdirsyncer reports no collections. Create the calendar first. See the
 MKCALENDAR step in option A. Then run `vdirsyncer discover reminders` again.
 
-**Password safety.** The setup script stores the password in
+Password safety. The setup script stores the password in
 `~/.config/vdirsyncer/config` with file mode 600. For more safety, use the
 `password.fetch` option of vdirsyncer with a command.
 
@@ -286,7 +274,7 @@ sudo pacman -R omarchy-apple-bridge
 
 The files under `~/.config` stay. Delete them by hand.
 
-## Planify: the GUI, configured without the GUI
+## Planify task app
 
 Planify is a tasks-only GTK4 app. It is not a mail client and it does not use
 evolution-data-server. Install it and let the setup script configure the
@@ -301,15 +289,17 @@ apple-bridge-setup
 `apple-bridge-planify-seed` to write the CalDAV account. Planify syncs the lists
 on the next launch. You never open its login dialog.
 
-To seed an account by hand:
+The helper was checked against Planify 4.19.5. It stores the CalDAV
+password in the app's database. Close Planify before changing its account.
+To seed an account by hand (the password is visible in the command arguments):
 
 ```bash
 apple-bridge-planify-seed \
-  --server-url http://192.168.1.50:5232/ \
-  --username joshua \
+  --server-url http://caldav.example.com:5232/ \
+  --username yourname \
   --password 'your-password' \
   --display-name 'Apple Reminders' \
-  --calendar-home-url http://192.168.1.50:5232/yourname/
+  --calendar-home-url http://caldav.example.com:5232/yourname/
 ```
 
 Two values matter:
@@ -332,8 +322,5 @@ env = XDG_DATA_DIRS,/usr/local/share:/usr/share:/var/lib/flatpak/exports/share:$
 
 ## Support
 
-Every bit of support helps keep omarchy-apple-bridge alive and free. If you are able, [sponsor on GitHub](https://github.com/sponsors/joshuaswarren) or send a Lightning donation to `joshuaswarren@strike.me` to directly fund continued development and new integrations.
-
-[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-pink?style=for-the-badge)](https://github.com/sponsors/joshuaswarren)
-
-If financial support is not an option, you can still make a big difference: [star the repo](https://github.com/joshuaswarren/omarchy-apple-bridge), share it, or recommend it to a colleague. Word of mouth is how most people find omarchy-apple-bridge.
+[Sponsor on GitHub](https://github.com/sponsors/joshuaswarren) or use
+Lightning at `joshuaswarren@strike.me`.
